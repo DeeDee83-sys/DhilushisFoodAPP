@@ -1,0 +1,2 @@
+# Test the connection
+ssh -T git@github.com
