@@ -6,6 +6,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../../domain/models/detection_result.dart';
 import '../../domain/models/vision_api_error.dart';
 import '../state/vision_api_state.dart';
+import '../controllers/vision_api_retry_controller.dart';
 import '../../../../core/ui/widgets/error_toast.dart';
 
 class UploadScreen extends ConsumerStatefulWidget {
@@ -78,38 +79,17 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   Future<void> _handleRetry() async {
-    final notifier = ref.read(visionApiStateProvider.notifier);
-    final client = ref.read(visionApiClientProvider);
-
-    notifier.setLoading(true);
-    notifier.incrementRetryAttempt();
-
-    // Update overlay to show loading state
+    // Update overlay to show loading state immediately
     if (mounted) {
       _updateErrorOverlay(context);
     }
 
-    try {
-      final result = await client.detectIngredients(widget.image);
-      notifier.setDetectionResult(result);
-      notifier.resetRetryAttempt();
+    // Use retry controller with exponential back-off
+    final controller = ref.read(visionApiRetryControllerProvider);
+    await controller.retry(widget.image);
 
-      // Remove overlay on success
-      if (mounted) {
-        _removeErrorOverlay();
-      }
-    } catch (e) {
-      if (e is VisionApiError) {
-        notifier.setError(e);
-      } else {
-        notifier.setError(VisionApiError.unknown('Unexpected error: $e'));
-      }
-
-      // Update overlay with new error state
-      if (mounted) {
-        _updateErrorOverlay(context);
-      }
-    }
+    // Overlay updates are handled automatically via state watching
+    // Success removes overlay, failure updates it with new error
   }
 
   void _handleCancel() {
@@ -263,21 +243,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   Future<void> _detectIngredients() async {
-    final notifier = ref.read(visionApiStateProvider.notifier);
-    final client = ref.read(visionApiClientProvider);
-
-    notifier.setLoading(true);
-    notifier.clearError();
-
-    try {
-      final result = await client.detectIngredients(widget.image);
-      notifier.setDetectionResult(result);
-    } catch (e) {
-      if (e is VisionApiError) {
-        notifier.setError(e);
-      } else {
-        notifier.setError(VisionApiError.unknown('Unexpected error: $e'));
-      }
-    }
+    // Use retry controller for initial detection
+    final controller = ref.read(visionApiRetryControllerProvider);
+    await controller.detectIngredients(widget.image);
   }
 }
