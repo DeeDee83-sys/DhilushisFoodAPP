@@ -7,6 +7,9 @@ import '../../domain/models/detection_result.dart';
 import '../../domain/models/vision_api_error.dart';
 import '../../data/vision_api_client.dart';
 import '../state/vision_api_state.dart';
+import '../../../../core/logging/structured_logger.dart';
+import '../../../../core/analytics/analytics_service.dart';
+import '../../../../core/utils/user_id_hasher.dart';
 
 part 'vision_api_retry_controller.g.dart';
 
@@ -77,6 +80,11 @@ class VisionApiRetryController {
       }
     } catch (e) {
       _handleError(e);
+
+      // Log failure and emit analytics event
+      if (e is VisionApiError && e.errorType != VisionApiErrorType.cancelled) {
+        _logFailureEvent(e, 0);
+      }
     } finally {
       _cancelToken = null;
       _isProcessing = false;
@@ -165,6 +173,12 @@ class VisionApiRetryController {
       }
     } catch (e) {
       _handleError(e);
+
+      // Log retry failure and emit analytics event
+      if (e is VisionApiError && e.errorType != VisionApiErrorType.cancelled) {
+        final currentState = _ref.read(visionApiStateProvider);
+        _logRetryEvent(e, currentState.retryAttempt);
+      }
     } finally {
       _cancelToken = null;
       _isProcessing = false;
@@ -198,6 +212,10 @@ class VisionApiRetryController {
       }
       _cancelToken?.cancel('User cancelled operation');
       _cancelToken = null;
+
+      // Log cancellation event
+      final currentState = _ref.read(visionApiStateProvider);
+      _logCancelEvent(currentState.retryAttempt);
     }
     _isProcessing = false;
   }
@@ -227,6 +245,81 @@ class VisionApiRetryController {
         print('Unexpected error: $error');
       }
     }
+  }
+
+  /// Logs a failure event to structured logger and analytics.
+  void _logFailureEvent(VisionApiError error, int retryAttempt) {
+    final hashedUserId = UserIdHasher.getCurrentUserIdHash();
+    final errorType = error.errorType.name;
+    final errorMessage = error.errorMessage;
+
+    // Emit structured log
+    final logger = _ref.read(structuredLoggerProvider);
+    logger.logVisionApiEvent(
+      level: LogLevel.error,
+      eventType: 'failure',
+      hashedUserId: hashedUserId,
+      errorType: errorType,
+      errorMessage: errorMessage,
+      retryAttempt: retryAttempt,
+    );
+
+    // Emit analytics event
+    final analytics = _ref.read(analyticsServiceProvider);
+    analytics.logVisionAPIFailure(
+      hashedUserId: hashedUserId,
+      errorType: errorType,
+      errorMessage: errorMessage,
+      retryAttempt: retryAttempt,
+    );
+  }
+
+  /// Logs a retry event to structured logger and analytics.
+  void _logRetryEvent(VisionApiError error, int retryAttempt) {
+    final hashedUserId = UserIdHasher.getCurrentUserIdHash();
+    final errorType = error.errorType.name;
+    final errorMessage = error.errorMessage;
+
+    // Emit structured log
+    final logger = _ref.read(structuredLoggerProvider);
+    logger.logVisionApiEvent(
+      level: LogLevel.warning,
+      eventType: 'retry',
+      hashedUserId: hashedUserId,
+      errorType: errorType,
+      errorMessage: errorMessage,
+      retryAttempt: retryAttempt,
+    );
+
+    // Emit analytics event
+    final analytics = _ref.read(analyticsServiceProvider);
+    analytics.logVisionAPIRetry(
+      hashedUserId: hashedUserId,
+      errorType: errorType,
+      errorMessage: errorMessage,
+      retryAttempt: retryAttempt,
+    );
+  }
+
+  /// Logs a cancel event to structured logger and analytics.
+  void _logCancelEvent(int retryAttempt) {
+    final hashedUserId = UserIdHasher.getCurrentUserIdHash();
+
+    // Emit structured log
+    final logger = _ref.read(structuredLoggerProvider);
+    logger.logVisionApiEvent(
+      level: LogLevel.info,
+      eventType: 'cancel',
+      hashedUserId: hashedUserId,
+      retryAttempt: retryAttempt,
+    );
+
+    // Emit analytics event
+    final analytics = _ref.read(analyticsServiceProvider);
+    analytics.logVisionAPICancel(
+      hashedUserId: hashedUserId,
+      retryAttempt: retryAttempt,
+    );
   }
 }
 

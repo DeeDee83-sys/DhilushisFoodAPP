@@ -3,11 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'core/remote_config/remote_config_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
+
+  // Create ProviderContainer to initialize services
+  final container = ProviderContainer();
+
+  // Initialize Remote Config
+  try {
+    final remoteConfigService = container.read(remoteConfigServiceProvider);
+    await remoteConfigService.initialize();
+  } catch (e) {
+    // Continue even if remote config fails - app should not break
+    debugPrint('Failed to initialize remote config: $e');
+  }
+
   runApp(
-    const ProviderScope(
-      child: MyApp(),
+    UncontrolledProviderScope(
+      container: container,
+      child: const MyApp(),
     ),
   );
 }

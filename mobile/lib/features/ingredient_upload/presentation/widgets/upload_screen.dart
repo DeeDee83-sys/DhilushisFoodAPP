@@ -8,6 +8,7 @@ import '../../domain/models/vision_api_error.dart';
 import '../state/vision_api_state.dart';
 import '../controllers/vision_api_retry_controller.dart';
 import '../../../../core/ui/widgets/error_toast.dart';
+import '../../../../core/remote_config/remote_config_service.dart';
 
 class UploadScreen extends ConsumerStatefulWidget {
   final File image;
@@ -32,6 +33,13 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   void _showErrorOverlay(BuildContext context, VisionApiError error) {
+    // Check remote config flag before showing banner
+    final remoteConfigService = ref.read(remoteConfigServiceProvider);
+    if (!remoteConfigService.isVisionErrorBannerEnabled()) {
+      // Banner is disabled via remote config - don't show overlay
+      return;
+    }
+
     // Remove existing overlay if present
     _removeErrorOverlay();
 
