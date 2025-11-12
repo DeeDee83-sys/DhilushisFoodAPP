@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/detection_result.dart';
 import '../../domain/models/vision_api_error.dart';
 import '../state/vision_api_state.dart';
+import '../../../../core/ui/widgets/error_toast.dart';
+import '../../../../../.dart_tool/flutter_gen/gen_l10n/app_localizations.dart';
 
-class UploadScreen extends ConsumerWidget {
+class UploadScreen extends ConsumerStatefulWidget {
   final File image;
 
   const UploadScreen({
@@ -15,8 +17,125 @@ class UploadScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UploadScreen> createState() => _UploadScreenState();
+}
+
+class _UploadScreenState extends ConsumerState<UploadScreen> {
+  OverlayEntry? _errorOverlayEntry;
+  VisionApiError? _currentError;
+
+  @override
+  void dispose() {
+    _removeErrorOverlay();
+    super.dispose();
+  }
+
+  void _showErrorOverlay(BuildContext context, VisionApiError error) {
+    // Remove existing overlay if present
+    _removeErrorOverlay();
+
+    final l10n = AppLocalizations.of(context)!;
+    final state = ref.read(visionApiStateProvider);
+
+    _errorOverlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: SafeArea(
+          child: Material(
+            type: MaterialType.transparency,
+            child: ErrorToast(
+              title: l10n.detectionErrorTitle,
+              message: l10n.detectionErrorMessage,
+              retryLabel: l10n.retryLabel,
+              cancelLabel: l10n.cancelLabel,
+              isLoading: state.isLoading,
+              onRetry: () => _handleRetry(),
+              onCancel: () => _handleCancel(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Insert overlay
+    Overlay.of(context).insert(_errorOverlayEntry!);
+    _currentError = error;
+  }
+
+  void _removeErrorOverlay() {
+    _errorOverlayEntry?.remove();
+    _errorOverlayEntry = null;
+    _currentError = null;
+  }
+
+  void _updateErrorOverlay(BuildContext context) {
+    if (_errorOverlayEntry != null) {
+      // Force rebuild of overlay
+      _errorOverlayEntry!.markNeedsBuild();
+    }
+  }
+
+  Future<void> _handleRetry() async {
+    final notifier = ref.read(visionApiStateProvider.notifier);
+    final client = ref.read(visionApiClientProvider);
+
+    notifier.setLoading(true);
+    notifier.incrementRetryAttempt();
+
+    // Update overlay to show loading state
+    if (mounted) {
+      _updateErrorOverlay(context);
+    }
+
+    try {
+      final result = await client.detectIngredients(widget.image);
+      notifier.setDetectionResult(result);
+      notifier.resetRetryAttempt();
+
+      // Remove overlay on success
+      if (mounted) {
+        _removeErrorOverlay();
+      }
+    } catch (e) {
+      if (e is VisionApiError) {
+        notifier.setError(e);
+      } else {
+        notifier.setError(VisionApiError.unknown('Unexpected error: $e'));
+      }
+
+      // Update overlay with new error state
+      if (mounted) {
+        _updateErrorOverlay(context);
+      }
+    }
+  }
+
+  void _handleCancel() {
+    final notifier = ref.read(visionApiStateProvider.notifier);
+    notifier.clearError();
+    notifier.resetRetryAttempt();
+    _removeErrorOverlay();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(visionApiStateProvider);
+
+    // Manage error overlay based on state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        if (state.error != null && _currentError != state.error) {
+          _showErrorOverlay(context, state.error!);
+        } else if (state.error == null && _errorOverlayEntry != null) {
+          _removeErrorOverlay();
+        } else if (state.error != null && _errorOverlayEntry != null) {
+          // Update existing overlay if loading state changed
+          _updateErrorOverlay(context);
+        }
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -26,18 +145,6 @@ class UploadScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Error banner placeholder - will be added in step 2
-            if (state.error != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                color: Colors.red.shade100,
-                child: Text(
-                  'Error: ${state.error!.errorMessage}',
-                  style: TextStyle(color: Colors.red.shade900),
-                ),
-              ),
-
             // Image display
             Expanded(
               child: SingleChildScrollView(
@@ -50,7 +157,7 @@ class UploadScreen extends ConsumerWidget {
                         maxHeight: 400,
                       ),
                       child: Image.file(
-                        image,
+                        widget.image,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -58,7 +165,7 @@ class UploadScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
 
                     // Loading indicator
-                    if (state.isLoading)
+                    if (state.isLoading && state.error == null)
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(24.0),
@@ -103,7 +210,7 @@ class UploadScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: ElevatedButton(
-                  onPressed: () => _detectIngredients(ref),
+                  onPressed: () => _detectIngredients(),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 48),
                   ),
@@ -155,7 +262,7 @@ class UploadScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _detectIngredients(WidgetRef ref) async {
+  Future<void> _detectIngredients() async {
     final notifier = ref.read(visionApiStateProvider.notifier);
     final client = ref.read(visionApiClientProvider);
 
@@ -163,7 +270,7 @@ class UploadScreen extends ConsumerWidget {
     notifier.clearError();
 
     try {
-      final result = await client.detectIngredients(image);
+      final result = await client.detectIngredients(widget.image);
       notifier.setDetectionResult(result);
     } catch (e) {
       if (e is VisionApiError) {

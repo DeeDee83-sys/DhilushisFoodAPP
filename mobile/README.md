@@ -41,12 +41,17 @@ lib/
    flutter pub get
    ```
 
-3. Generate code:
+3. Generate localization files:
+   ```
+   flutter gen-l10n
+   ```
+
+4. Generate code:
    ```
    flutter pub run build_runner build --delete-conflicting-outputs
    ```
 
-4. Run the app:
+5. Run the app:
    ```
    flutter run
    ```
@@ -57,6 +62,12 @@ This project uses code generation for:
 - Riverpod providers
 - Freezed models
 - JSON serialization
+- Localization (i18n)
+
+To generate localization files:
+```
+flutter gen-l10n
+```
 
 To generate code after making changes:
 ```
@@ -67,6 +78,16 @@ To watch for changes:
 ```
 flutter pub run build_runner watch --delete-conflicting-outputs
 ```
+
+## Localization
+
+The app supports internationalization using Flutter's built-in localization system.
+
+To add a new language:
+1. Create a new ARB file in `lib/l10n/` (e.g., `app_es.arb` for Spanish)
+2. Copy the structure from `app_en.arb` and translate the values
+3. Run `flutter gen-l10n` to generate the localization classes
+4. The app will automatically support the new locale
 
 ## Environment Configuration
 

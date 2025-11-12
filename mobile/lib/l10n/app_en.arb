@@ -1,0 +1,19 @@
+{
+  "@@locale": "en",
+  "detectionErrorTitle": "Detection Error",
+  "@detectionErrorTitle": {
+    "description": "Title for the error banner when ingredient detection fails"
+  },
+  "detectionErrorMessage": "Something went wrong. Please retry or cancel.",
+  "@detectionErrorMessage": {
+    "description": "Message explaining the error and available actions"
+  },
+  "retryLabel": "Retry",
+  "@retryLabel": {
+    "description": "Label for the retry button"
+  },
+  "cancelLabel": "Cancel",
+  "@cancelLabel": {
+    "description": "Label for the cancel button"
+  }
+}
