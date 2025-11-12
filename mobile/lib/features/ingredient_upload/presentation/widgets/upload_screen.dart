@@ -93,9 +93,16 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   void _handleCancel() {
+    // Cancel any in-flight request
+    final controller = ref.read(visionApiRetryControllerProvider);
+    controller.cancel();
+
+    // Clear state
     final notifier = ref.read(visionApiStateProvider.notifier);
     notifier.clearError();
     notifier.resetRetryAttempt();
+
+    // Remove overlay
     _removeErrorOverlay();
   }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/models/detection_result.dart';
@@ -28,6 +29,7 @@ class VisionApiRetryController {
   static const List<int> retryDelays = [0, 1, 2, 4, 8, 16];
 
   bool _isProcessing = false;
+  CancelToken? _cancelToken;
 
   VisionApiRetryController(this._ref);
 
@@ -44,6 +46,7 @@ class VisionApiRetryController {
     }
 
     _isProcessing = true;
+    _cancelToken = CancelToken();
 
     try {
       final stateNotifier = _ref.read(visionApiStateProvider.notifier);
@@ -56,11 +59,14 @@ class VisionApiRetryController {
       stateNotifier.resetRetryAttempt();
 
       if (kDebugMode) {
-        print('Starting ingredient detection');
+        print('Starting ingredient detection with cancel token');
       }
 
-      // Make API call
-      final result = await client.detectIngredients(image);
+      // Make API call with cancel token
+      final result = await client.detectIngredients(
+        image,
+        cancelToken: _cancelToken,
+      );
 
       // Success - update state
       stateNotifier.setDetectionResult(result);
@@ -72,6 +78,7 @@ class VisionApiRetryController {
     } catch (e) {
       _handleError(e);
     } finally {
+      _cancelToken = null;
       _isProcessing = false;
     }
   }
@@ -112,6 +119,7 @@ class VisionApiRetryController {
     }
 
     _isProcessing = true;
+    _cancelToken = CancelToken();
 
     try {
       final stateNotifier = _ref.read(visionApiStateProvider.notifier);
@@ -133,9 +141,20 @@ class VisionApiRetryController {
       // Wait for back-off delay
       await Future.delayed(delay);
 
-      // Make API call
+      // Check if cancelled during delay
+      if (_cancelToken == null) {
+        if (kDebugMode) {
+          print('Operation cancelled during retry delay');
+        }
+        return;
+      }
+
+      // Make API call with cancel token
       final client = _ref.read(visionApiClientProvider);
-      final result = await client.detectIngredients(image);
+      final result = await client.detectIngredients(
+        image,
+        cancelToken: _cancelToken,
+      );
 
       // Success - clear error and reset retry count
       stateNotifier.setDetectionResult(result);
@@ -147,6 +166,7 @@ class VisionApiRetryController {
     } catch (e) {
       _handleError(e);
     } finally {
+      _cancelToken = null;
       _isProcessing = false;
     }
   }
@@ -167,11 +187,35 @@ class VisionApiRetryController {
     return Duration(seconds: retryDelays[attempt]);
   }
 
+  /// Cancels any in-flight API request.
+  ///
+  /// This is called when the user taps the Cancel button to abort
+  /// the current detection or retry operation.
+  void cancel() {
+    if (_cancelToken != null) {
+      if (kDebugMode) {
+        print('Cancelling in-flight request');
+      }
+      _cancelToken?.cancel('User cancelled operation');
+      _cancelToken = null;
+    }
+    _isProcessing = false;
+  }
+
   /// Handles errors from Vision API calls.
   void _handleError(Object error) {
     final stateNotifier = _ref.read(visionApiStateProvider.notifier);
 
     if (error is VisionApiError) {
+      // Don't set error state for cancelled requests
+      // User has already cleared the error via the Cancel button
+      if (error.errorType == VisionApiErrorType.cancelled) {
+        if (kDebugMode) {
+          print('Request cancelled by user');
+        }
+        return;
+      }
+
       stateNotifier.setError(error);
       if (kDebugMode) {
         print('Vision API error: ${error.errorType} - ${error.errorMessage}');
