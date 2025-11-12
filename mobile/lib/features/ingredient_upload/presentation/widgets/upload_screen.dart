@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../../domain/models/detection_result.dart';
 import '../../domain/models/vision_api_error.dart';
 import '../state/vision_api_state.dart';
 import '../../../../core/ui/widgets/error_toast.dart';
-import '../../../../../.dart_tool/flutter_gen/gen_l10n/app_localizations.dart';
 
 class UploadScreen extends ConsumerStatefulWidget {
   final File image;
