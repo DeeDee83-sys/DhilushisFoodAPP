@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/models/detection_result.dart';
+import '../../domain/models/vision_api_error.dart';
 import '../state/vision_api_state.dart';
 
 class UploadScreen extends ConsumerWidget {
@@ -114,7 +116,7 @@ class UploadScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetectionResults(dynamic detectionResult) {
+  Widget _buildDetectionResults(DetectionResult detectionResult) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
