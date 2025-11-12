@@ -6,6 +6,21 @@ This document describes the Firebase setup required for the Vision API error han
 
 - Firebase project created and linked to the app
 - Firebase SDK initialized in the app (done in main.dart)
+- Firebase options configured (lib/firebase_options.dart)
+
+**IMPORTANT:** The firebase_options.dart file contains placeholder values.
+You must regenerate this file using the FlutterFire CLI:
+
+```bash
+# Install FlutterFire CLI
+dart pub global activate flutterfire_cli
+
+# Configure Firebase for your project
+flutterfire configure
+```
+
+This will generate the correct firebase_options.dart file with real API keys
+and configuration for your Firebase project.
 
 ## Required Firebase Services
 
